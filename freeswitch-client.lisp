@@ -14,7 +14,7 @@
                  error
                (format stream "FS client error: ~A." reason)))))
 
-(defun fs-parse (raw)
+(defun fs-parse-new (raw)
   (let ((all-inputs nil) (current-input nil))
     (map nil
 	 #'(lambda (line)
@@ -33,6 +33,22 @@
 	 raw)
     (when current-input (push (nreverse current-input) all-inputs))
     (nreverse all-inputs)))
+
+(defun fs-parse (raw)
+  (mapcar 
+   #'(lambda (input)
+       (mapcar 
+	#'(lambda (line)
+	    (let ((pos (search ":" line)))
+	      (if pos
+		  (let ((key (intern (cl-ppcre:regex-replace-all 
+				      "_" (string-upcase (trim-ws (subseq line 0 pos))) "-")
+				     'keyword))
+			(value (subseq line (1+ pos))))
+		    (cons key (trim-ws (hunchentoot:url-decode value))))
+		  (cons (trim-ws input) ""))))
+	(my-split input :ws '(#\Newline #\Return #\Linefeed))))
+   (cl-ppcre:split "(\\n\\n|\\r\\n\\r\\n)" raw)))
 
 (defun fs-parse-line (input)
   (let ((pos (search ":" input)))
@@ -109,7 +125,7 @@
 		  (logger :warning "BAD CONTENT-LENGTH: ~A" content-length))))
 	  request)
       #+sbcl
-      (sb-int:closed-stream-error (condition)
+      (SB-INT:CLOSED-STREAM-ERROR (condition)
 	(logger :err "FS-READ: got ~A.  Read ~A" condition request)
 	request)
       (trivial-timeout:timeout-error (condition)
@@ -449,7 +465,7 @@ are found."
   (:ignore ((:event-name . "DTMF")))
   (:ok     ((:content-type . "text/disconnect-notice") (:content-disposition . "disconnect"))))
 
-(def-recognizer :outgoing-finished :unknown
+(def-recognizer :psychic-outgoing-finished :unknown
   (:ignore ((:event-name . "CHANNEL_EXECUTE") (:application . "hangup")))
   (:ignore ((:event-name . "CHANNEL_EXECUTE_COMPLETE") (:application . "hangup")))
   (:ignore ((:event-name . "CHANNEL_UNPARK") (:variable-current-application . "hangup")))
@@ -637,8 +653,7 @@ are found."
 	nil))))
 	
 (defmethod fs-setup-outgoing-call ((stream stream) sock destination &key (timeout 60) 
-				   (application "&park()"))
-  ;; FIXME: this is incredibly ugly.  Cleanup the mess!
+				   (application "&park()") caller-id)
   (let ((session nil))
     (logger :debug "Logging in to FreeSWITCH at ~A" (usocket:get-peer-name sock))
     (let ((response (fs-read stream sock)))
@@ -654,8 +669,11 @@ are found."
 			    destination)
 		    (format 
 		     stream 
-		     "api originate {ignore_early_media=true,originate_timeout=~A}~A ~A~%~%"
-		     timeout destination application)
+		     "api originate {ignore_early_media=true,originate_timeout=~A~A}~A ~A~%~%"
+		     timeout 
+		     (if caller-id (format nil ",origination_caller_id_number=~A" caller-id) "")
+		     destination 
+		     application)
 		    (force-output stream)
 		    (let ((response (fs-read stream sock)))
 		      (if (recognize? '((:content-type . "api/response")) response)
@@ -682,7 +700,7 @@ are found."
 (defun list-valid-session-uuids ()
   (let ((out 
 	 (trivial-shell:shell-command 
-	  (format nil "~A -P ~A -H ~A -p ~A -x 'show channels'" *fs-cli* *fs-port* *fs-host* *fs-auth*)))
+	  "/usr/local/freeswitch/bin/fs_cli -P 8021 -H localhost -p miadmin -x 'show channels'")))
     (let ((lines (cl-ppcre:split "\\n" out)) (uuids nil))
       (dolist (l lines)
 	(when (cl-ppcre:scan "^[0-9abcdef]{8}\-" l)
@@ -703,7 +721,7 @@ are found."
 		 (close (fs-stream s))
 		 (shutdown-session s :hangup? nil))
 	     (error (c)
-	       (logger :err "Problem killing invalid session ~A: ~A" (uuid s) c))))))))
+	       (logger :debug "Problem killing invalid session ~A: ~A" (uuid s) c))))))))
      
 (defun list-invalid-sessions ()
   (let ((uuids (list-valid-session-uuids)) (sessions nil))

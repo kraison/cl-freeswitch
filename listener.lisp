@@ -7,6 +7,7 @@
 
 (in-package #:cl-freeswitch)
 
+;(defconstant +buflen+ 16)
 (defconstant +max-query-length+ 10000000)
 
 (define-condition listener-error (error)
@@ -148,7 +149,7 @@ something capable of detecting overruns."
   (setf *stop-listener* t))
 
 (defun originate (destination &key continuation session-vars (timeout 60) fs-host
-		  (recv-func #'handle-incoming-event))
+		  (recv-func #'handle-incoming-event) caller-id)
   (unless fs-host (setf fs-host *fs-host*))
   (let ((thread 
 	 (make-thread
@@ -159,7 +160,8 @@ something capable of detecting overruns."
 			   (stream (usocket:socket-stream socket)))
 		      (logger :debug "IN ORIGINATE FOR ~A / ~A" socket destination)
 		      (setf *session* (fs-setup-outgoing-call stream socket destination 
-							      :timeout timeout))
+							      :timeout timeout
+							      :caller-id caller-id))
 		      (when (session? *session*)
 			(setf (thread *session*) (current-thread))
 			(dolist (kv session-vars)

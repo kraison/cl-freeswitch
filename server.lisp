@@ -15,7 +15,7 @@
   (when (and (threadp *listener-thread*) (thread-alive-p *listener-thread*))
     (error 'listener-error "Listener already running: ~A" *listener-thread*))
   (setf *listener-thread* 
-	(make-thread #'(lambda () (start-listener *port*)) :name "listener-thread")))
+	(make-thread #'(lambda () (start-listener *port* :address "127.0.0.1")) :name "listener-thread")))
 
 (defun stop ()
   (stop-all-fifo-queues)
