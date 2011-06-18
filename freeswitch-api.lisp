@@ -115,8 +115,6 @@ called until after the break command returns."
        (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
 
 (defun handle-menu-dtmf (input status choices min max tries menu-file invalid-file old-dtmf-handler)
-  "FIXME: unfinished pure-Lisp replacement for using play_and_get_digits. Needed to handle edge cases that
-play_and_get_digits doesn't do well, such as multi-length input recognition."
   (let ((digit (fs-fetch :dtmf-digit input))
 	(menu-digits (get-session-var :menu-digits)))
     (logger :debug "HANDLE-MENU-DTMF GOT ~A" digit)
@@ -145,10 +143,9 @@ play_and_get_digits doesn't do well, such as multi-length input recognition."
 		   ;; Handle bad choices
 		   nil)))))))
 
+#|
 (defmacro def-operator-menu-new (name failure-func choices min max tries timeout terminator 
 				 menu-file invalid-file)
-  "FIXME: unfinished pure-Lisp replacement for using play_and_get_digits. Needed to handle edge cases that
-play_and_get_digits doesn't do well, such as multi-length input recognition."
   (with-gensyms (i s dtmf-handler dtmf-input dtmf-status)
     `(progn
        (defun ,name (input status)
@@ -169,10 +166,56 @@ play_and_get_digits doesn't do well, such as multi-length input recognition."
 			  :play ,menu-file)))
        (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
        (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
+|#
+
+(defmacro def-dtmf-combo-menu (name failure-func choices min max tries timeout terminator menu-file
+			       invalid-file &optional regex)
+  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym)) (dtmf-handler (gensym)))
+    `(progn
+       (defun ,name (input status)
+         (let ((,dtmf-handler (dtmf-handler *session*)))
+           (logger :debug "IN OPERATOR METHOD: ~A" ',name)
+           ;;(unset-dtmf-handler)
+           (set-continuation
+            #'(lambda (,i ,s)
+                (when (functionp ,dtmf-handler)
+                  (setf (dtmf-handler *session*) ,dtmf-handler))
+                (if (eql ,s :user-failure)
+                    (funcall ,failure-func ,i ,s)
+                    (let ((,choice (fs-fetch :variable-user-input ,i)))
+                      (logger :debug "EXAMINING USER INPUT ~A" ,choice)
+                      (cond
+                        ,@(mapcar #'(lambda (c)
+                                      (cond ((and (consp (first c))
+                                                  (eql (first (first c)) :regex))
+                                             `((my-scan ,(second (first c)) ,choice)
+                                               (logger :debug "INPUT ~A MATCHED REGEX ~A" ,choice ,(second (first c)))
+                                               (set-session-var :user-input ,choice)
+                                               (set-session-var :retries 0)
+                                               (funcall ,(second c) input status)))
+                                            ((stringp (first c))
+                                             `((equalp ,choice ,(first c))
+                                               (set-session-var :user-input ,choice)
+                                               (set-session-var :retries 0)
+                                               (funcall ,(second c) input status)))))
+                                  choices)
+                        (t (funcall #',name input status))))))
+            :play-and-get-digits)
+           (let ((,args
+                  ,(if regex
+                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file ,regex)
+                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file))))
+             (handler-case
+                 (fs-command (fs-stream *session*)
+                             :play-and-get-digits
+                             ,args
+                             :uuid (uuid *session*))
+               (stream-error (c)
+                 (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))))
+       (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+       (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
 
 (defmacro def-operator-choice-handler (name tries parent-func failure-func choices)
-  "FIXME: unfinished pure-Lisp replacement for using play_and_get_digits. Needed to handle edge cases that
-play_and_get_digits doesn't do well, such as multi-length input recognition."
   (let ((choice (gensym)))
     `(progn
        (defun ,name (input status)

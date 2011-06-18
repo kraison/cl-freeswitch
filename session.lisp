@@ -139,23 +139,25 @@
 		 :reason (format nil "Unknown extension dialed: ~A" (destination *session*)))))))
 
 (defmethod shutdown-session ((session session) &key (hangup? t))
-  (let ((*session* session))
-    (logger :debug "Destroying session ~A" session)
-    (when hangup?
-      (ignore-errors (fs-command (fs-stream *session*) :hangup nil :uuid (uuid *session*))))
-    (when (or (functionp (end-call-handler session)) (fboundp (end-call-handler session)))
-      (logger :debug "shutdown-session waiting for session lock on ~A" session)
-      (handler-case
-	  (with-recursive-lock-held ((lock *session*))
-	    (logger :debug "shutdown-session got session lock on ~A" session)
-	    (logger :debug "SHUTDOWN-SESSION RUNNING END-CALL-HANDLER: ~A" (end-call-handler session))
-	    (funcall (end-call-handler session) session)
-	    (logger :debug "shutdown-session releasing session lock on ~A" session))
-	(error (c)
-	  (logger :err "shutdown-session got error on ~A: ~A" session c))))
-    (reset-history session)
-    (remhash (uuid session) *sessions*)
-    (logger :debug "shutdown-session done for ~A" session)))
+  (with-recursive-lock-held ((lock session))
+    (logger :debug "shutdown-session got session lock on ~A" session)
+    (let ((*session* session))
+      (logger :debug "Destroying session ~A" session)
+      (when hangup?
+	(ignore-errors (fs-command (fs-stream *session*) :hangup nil :uuid (uuid *session*))))
+      (when (or (functionp (end-call-handler session)) (fboundp (end-call-handler session)))
+	(logger :debug "shutdown-session waiting for session lock on ~A" session)
+	(handler-case
+	    ;;(with-recursive-lock-held ((lock *session*))
+	    (progn
+	      (logger :debug "SHUTDOWN-SESSION RUNNING END-CALL-HANDLER: ~A" (end-call-handler session))
+	      (funcall (end-call-handler session) session)
+	      (logger :debug "shutdown-session releasing session lock on ~A" session))
+	  (error (c)
+	    (logger :err "shutdown-session got error on ~A: ~A" session c))))
+      (reset-history session)
+      (remhash (uuid session) *sessions*)
+      (logger :debug "shutdown-session done for ~A" session))))
 
 (defun create-session (&key stream sock uuid caller-id destination fs-host raw-connect-info)
   (if (streamp stream)
