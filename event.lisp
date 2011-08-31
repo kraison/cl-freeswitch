@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 (define-condition event-handler-error (error)
@@ -31,7 +24,7 @@
     (handler-case
 	(if (recognizer *session*)
 	    (with-recursive-lock-held ((lock *session*))
-	      (dolist (parsed-input (fs-parse raw-input))
+	      (dolist (parsed-input (fs-parse-new raw-input))
 		(let ((ok? (fs-command-ok? (recognizer *session*) (uuid *session*) parsed-input)))
 		  (log-recognizer ok? parsed-input)
 		  (case ok?

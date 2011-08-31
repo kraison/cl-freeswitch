@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 (defvar *syslog-program* "cl-freeswitch")
@@ -31,14 +24,13 @@
     (uuid:print-bytes s (uuid:make-v1-uuid))))
 
 (defun logger (level msg &rest args)
-  (when (or (not (eql level :debug)) *debug*)
-    (syslog:log *syslog-program* 
-		*syslog-facility* 
-		level 
-		(if (session? *session*) 
-		    (format nil "~A : ~A" (uuid *session*) (apply #'format nil msg args))
-		    (apply #'format nil msg args))
-		syslog:+log-pid+)))
+  (syslog:log *syslog-program* 
+	      *syslog-facility* 
+	      level 
+	      (if (session? *session*) 
+		  (format nil "~A : ~A" (uuid *session*) (apply #'format nil msg args))
+		  (apply #'format nil msg args))
+	      syslog:+log-pid+))
 
 (defun parse-any-number (str)
   (cond ((stringp str)
@@ -98,6 +90,35 @@ containing the whole rest of the given `string', if any."
 			   (char= #\Return c))
 		   (incf matches))) s)
     (if (= matches (length s)) t nil)))
+
+(defun force-gc? (&optional (max 250000000))
+  (> (memory-check) max))
+
+(defun memory-check ()
+  (let ((room (with-output-to-string (r)
+                (let ((*standard-output* r))
+                  (room)))))
+    (with-input-from-string (s room)
+      (do ((input (read-line s nil nil)
+                  (read-line s nil nil)))
+          ((null input))
+        (cl-ppcre:register-groups-bind (memory-area size)
+            ("^(.*)\:\\s+([0-9\,]+) bytes\." input)
+          ;;(format t "GOT: ~A/~A~%" memory-area size)
+          (when (cl-ppcre:scan "Dynamic space usage is" memory-area)
+            (return-from memory-check
+              (parse-integer (cl-ppcre:regex-replace-all "\," size "")))))))))
+
+;;              ((cl-ppcre:scan "Read-only space usage is" memory-area)
+;;               (format t "Read-only space: ~A~%" size))
+;;              ((cl-ppcre:scan "Static space usage is" memory-area)
+;;               (format t "Static space: ~A~%" size))
+;;              ((cl-ppcre:scan "Control stack usage is" memory-area)
+;;               (format t "Control stack space: ~A~%" size))
+;;              ((cl-ppcre:scan "Binding stack usage is" memory-area)
+;;               (format t "Binding stack space: ~A~%" size))
+;;              ))))))
+
 
 (defun flatten-alist (alist)
   (mapcan #'(lambda (item)

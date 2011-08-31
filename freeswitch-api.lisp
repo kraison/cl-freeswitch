@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 
@@ -114,6 +107,7 @@ called until after the break command returns."
        (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
        (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
 
+#|
 (defun handle-menu-dtmf (input status choices min max tries menu-file invalid-file old-dtmf-handler)
   (let ((digit (fs-fetch :dtmf-digit input))
 	(menu-digits (get-session-var :menu-digits)))
@@ -143,7 +137,6 @@ called until after the break command returns."
 		   ;; Handle bad choices
 		   nil)))))))
 
-#|
 (defmacro def-operator-menu-new (name failure-func choices min max tries timeout terminator 
 				 menu-file invalid-file)
   (with-gensyms (i s dtmf-handler dtmf-input dtmf-status)

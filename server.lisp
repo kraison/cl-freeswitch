@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 (defun set-quit (&rest args)
@@ -15,7 +8,8 @@
   (when (and (threadp *listener-thread*) (thread-alive-p *listener-thread*))
     (error 'listener-error "Listener already running: ~A" *listener-thread*))
   (setf *listener-thread* 
-	(make-thread #'(lambda () (start-listener *port* :address "127.0.0.1")) :name "listener-thread")))
+	;;(make-thread #'(lambda () (start-listener *port* :address "127.0.0.1")) :name "listener-thread")))
+	(make-thread #'(lambda () (start-listener *port*)) :name "listener-thread")))
 
 (defun stop ()
   (stop-all-fifo-queues)

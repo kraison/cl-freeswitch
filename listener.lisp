@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 ;(defconstant +buflen+ 16)
@@ -44,6 +37,7 @@
   "Close socket and remove its event handler."
   (logger :debug "terminating ~A" session)
   (ignore-errors (usocket:socket-close (sock session)))
+  (ignore-errors (close (fs-stream session)))
   (remove-thread (thread session))
   (logger :debug "~A terminated" session)
   (setf session nil))
@@ -154,11 +148,16 @@ something capable of detecting overruns."
   (let ((thread 
 	 (make-thread
 	  #'(lambda ()
-	      (let (*session*)
+	      (let* (*session*
+		     (socket (handler-case 
+				 (usocket:socket-connect fs-host *fs-port*) 
+			       (error (c) 
+				 (logger :err "ORIGINATE: unable to connect to FS: ~A" c)
+				 (sb-ext:quit))))
+		     (stream (when socket (usocket:socket-stream socket))))
 		(handler-case
-		    (let* ((socket (usocket:socket-connect fs-host *fs-port*))
-			   (stream (usocket:socket-stream socket)))
-		      (logger :debug "IN ORIGINATE FOR ~A / ~A" socket destination)
+		    (progn
+		      (logger :debug "ORIGINATE FOR ~A / ~A" socket destination)
 		      (setf *session* (fs-setup-outgoing-call stream socket destination 
 							      :timeout timeout
 							      :caller-id caller-id))
@@ -168,26 +167,16 @@ something capable of detecting overruns."
 			  (set-session-var (car kv) (cdr kv)))
 			(when (and continuation (or (functionp continuation) (fboundp continuation)))
 			  (funcall continuation nil :ok))))
-		  (freeswitch-client-error (c)
-		    (logger :err "ORIGINATE GOT FS CLIENT ERROR: ~A" c)
-		    (when (session? *session*)
-		      (shutdown-session *session* :hangup? nil)
-		      (shutdown-connection *session*)))
-		  (end-of-file (c)
-		    (declare (ignore c))
-		    (logger :err "Client closed connection. Killing ~A" *session*)
-		    (when (session? *session*)
-		      (shutdown-session *session* :hangup? nil)
-		      (shutdown-connection *session*)))
 		  (error (c)
-		    (logger :err "~A got unhandled error: ~A. Killing session." *session* c)
+		    (logger :err "ORIGINATE for ~A got an error: ~A. Killing session." *session* c)
 		    (when (session? *session*)
 		      (shutdown-session *session*)
 		      (shutdown-connection *session*))))
 		(if (session? *session*)
 		    (client-loop recv-func)
 		    (progn
-		      (logger :err "Unable to originate call to ~A." destination)
-		      (remove-thread (current-thread))))))
+		      (logger :err "ORIGINATE: Unable to originate call to ~A." destination)
+		      (remove-thread (current-thread))))
+		(ignore-errors (usocket:socket-close socket))))
 	  :name (format nil "originate-handler ~A" destination))))
     (add-thread thread)))

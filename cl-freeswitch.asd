@@ -1,20 +1,13 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 ;; ASDF package description for cl-freeswitch              -*- Lisp -*-
 
 (defpackage :cl-freeswitch-system (:use :cl :asdf))
 (in-package :cl-freeswitch-system)
 
 (defsystem cl-freeswitch
-  :name "Common Lisp Freeswitch ESL Library"
+  :name "Freeswitch ESL Library"
   :maintainer "Kevin Raison"
   :author "Kevin Raison <last name @ chatsubo dot net>"
-  :version "0.2"
+  :version "0.1"
   :description "Freeswitch ESL library for Lisp"
   :long-description "Freeswitch ESL library for Lisp."
   :depends-on (:usocket
@@ -40,4 +33,5 @@
 	       (:file "event" :depends-on ("notifier"))
 	       (:file "listener" :depends-on ("event"))
 	       (:file "call-queue" :depends-on ("listener"))
-	       (:file "server" :depends-on ("call-queue"))))
+	       (:file "license" :depends-on ("call-queue"))
+	       (:file "server" :depends-on ("license"))))

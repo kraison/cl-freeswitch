@@ -1,10 +1,3 @@
-;; This software is Copyright (c) Chatsubo.net, LLC, May 1, 2011.
-;; Chatsubo.net, LLC grants you the rights to distribute
-;; and use this software as governed by the terms
-;; of the Lisp Lesser GNU Public License
-;; (http://opensource.franz.com/preamble.html),
-;; known as the LLGPL.
-
 (in-package #:cl-freeswitch)
 
 (define-condition freeswitch-client-error (error)
@@ -574,6 +567,35 @@ are found."
   (format stream "connect~%~%")
   (force-output stream))
 
+(defun fs-get-active-channels ()
+  (let* ((sock (usocket:socket-connect *fs-host* *fs-port*))
+	 (stream (usocket:socket-stream sock)))
+    (unwind-protect
+	 (progn
+	   (fs-read stream)
+	   (format stream "auth ~A~%~%" *fs-auth*)
+	   (force-output stream)
+	   (fs-read stream)
+	   (format stream "api show channels~%~%")
+	   (force-output stream)
+	   (let ((channels (fs-read stream)))
+	     (remove-if #'null
+			(mapcar #'(lambda (l)
+				    (cond ((or (eql (car l) :content-type)
+					       (eql (car l) :content-length)
+					       (and (stringp (car l))
+						    (or (= 0 (length (car l)))
+							(cl-ppcre:scan "^[0-9]+ total" (car l)))))
+					   nil)
+					  ((and (stringp (cdr l)) (> (length (cdr l)) 0))
+					   (cdr l))))
+				channels))))
+      (progn
+	(ignore-errors
+	  (format stream "exit~%~%")
+	  (force-output stream))
+	(usocket:socket-close sock)))))
+
 (defmethod fs-setup-call ((stream stream) sock)
   "Setup session info and connect the call."
   (logger :debug "Handling client ~A" (usocket:get-peer-name sock))
@@ -718,8 +740,8 @@ are found."
 	       (progn
 		 (when (open-stream-p (fs-stream s))
 		   (format (fs-stream s) "exit~%~%"))
-		 (close (fs-stream s))
-		 (shutdown-session s :hangup? nil))
+		 (shutdown-session s :hangup? nil)
+		 (ignore-errors (shutdown-connection s)))
 	     (error (c)
 	       (logger :debug "Problem killing invalid session ~A: ~A" (uuid s) c))))))))
      
