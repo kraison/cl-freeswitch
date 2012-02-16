@@ -27,6 +27,7 @@
 	   #:db-connection
 	   #:raw-connect-info
 	   #:shutdown-session
+           #:with-session-vars
 	   #:get-session-var
 	   #:set-session-var
 	   #:get-session-vars
