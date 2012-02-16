@@ -53,7 +53,9 @@
 	   #:def-operator-choice-handler
 	   #:def-custom-operator-action
 	   #:def-operator-plan
+           #:session-let
 	   #:set-next-step
+           #:take-operator-action
 	   #:set-dtmf-handler
 	   #:unset-dtmf-handler
 	   #:set-end-call-handler

@@ -13,7 +13,7 @@
   "Set DTMF handlers from a list of pairs. Handler will send a break command and then execute the
 continuation.  If break? is true, event-lock will be used and the DTMF continuation will not be
 called until after the break command returns."
-  (let ((input (gensym)) (status (gensym)) (digit (gensym)) (action (gensym)) 
+  (let ((input (gensym)) (status (gensym)) (digit (gensym)) (action (gensym))
 	(i (gensym)) (s (gensym)) (l (gensym)) (b? (gensym)))
     `(let ((,l ',lst) (,b? ,break?))
        (sb-ext:compare-and-swap
@@ -26,12 +26,12 @@ called until after the break command returns."
 		(if (and ,action (or (fboundp ,action) (functionp ,action)))
 		    (if ,b?
 			(progn
-			  (logger :debug "DTMF HANDLER CALLING BREAK AND THEN ~A FOR ~A" 
+			  (logger :debug "DTMF HANDLER CALLING BREAK AND THEN ~A FOR ~A"
 				  ,action ,digit)
 			  (set-continuation #'(lambda (,i ,s) (funcall ,action ,i ,s))
 					    (recognizer *session*))
 			  (handler-case
-			      (fs-command (fs-stream *session*) 
+			      (fs-command (fs-stream *session*)
 					  :break nil
 					  :uuid (uuid *session*)
 					  :event-lock ,b?)
@@ -50,16 +50,16 @@ called until after the break command returns."
        (logger :debug "IN OPERATOR METHOD: ~A" ',name)
        (set-continuation ,continuation ,recognizer)
        (handler-case
-	   (fs-command (fs-stream *session*) 
-		       ,recognizer 
-		       ,(if args `(list ,@args) nil) 
+	   (fs-command (fs-stream *session*)
+		       ,recognizer
+		       ,(if args `(list ,@args) nil)
 		       :uuid (uuid *session*))
 	 (stream-error (c)
 	   (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))
      (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
      (export-as-operator-method #',name (string-downcase (symbol-name ',name)))))
 
-(defmacro def-operator-menu (name failure-func choices min max tries timeout terminator menu-file 
+(defmacro def-operator-menu (name failure-func choices min max tries timeout terminator menu-file
 			invalid-file &optional regex)
   (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym)) (dtmf-handler (gensym)))
     `(progn
@@ -67,7 +67,7 @@ called until after the break command returns."
 	 (let ((,dtmf-handler (dtmf-handler *session*)))
 	   (logger :debug "IN OPERATOR METHOD: ~A" ',name)
 	   (unset-dtmf-handler)
-	   (set-continuation 
+	   (set-continuation
 	    #'(lambda (,i ,s)
 		(when (functionp ,dtmf-handler)
 		  (setf (dtmf-handler *session*) ,dtmf-handler))
@@ -77,10 +77,10 @@ called until after the break command returns."
 		      (logger :debug "EXAMINING USER INPUT ~A" ,choice)
 		      (cond
 			,@(mapcar #'(lambda (c)
-				      (cond ((and (consp (first c)) 
+				      (cond ((and (consp (first c))
 						  (eql (first (first c)) :regex))
 					     `((my-scan ,(second (first c)) ,choice)
-					       (logger :debug "INPUT ~A MATCHED REGEX ~A" 
+					       (logger :debug "INPUT ~A MATCHED REGEX ~A"
 						       ,choice ,(second (first c)))
 					       (set-session-var :user-input ,choice)
 					       (set-session-var :retries 0)
@@ -93,13 +93,13 @@ called until after the break command returns."
 				  choices)
 			(t (funcall #',name input status))))))
 	    :play-and-get-digits)
-	   (let ((,args 
+	   (let ((,args
 		  ,(if regex
 		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file ,regex)
 		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file))))
 	     (handler-case
-		 (fs-command (fs-stream *session*) 
-			     :play-and-get-digits 
+		 (fs-command (fs-stream *session*)
+			     :play-and-get-digits
 			     ,args
 			     :uuid (uuid *session*))
 	       (stream-error (c)
@@ -119,7 +119,7 @@ called until after the break command returns."
 	     ;; break, play invalid file, check retries, replay menu file
 	     )
 	    ((>= digit-length min)
-	     (let ((cont 
+	     (let ((cont
 		    (loop for c in choices do
 			 (destructuring-bind (regex action) c
 			   (when (cl-ppcre:scan (format nil "^~A$" regex) digits)
@@ -127,7 +127,7 @@ called until after the break command returns."
 	       (if cont
 		   (handler-case
 		       (progn
-			 (fs-command (fs-stream *session*) 
+			 (fs-command (fs-stream *session*)
 				     :break nil
 				     :uuid (uuid *session*)
 				     :event-lock t)
@@ -137,7 +137,7 @@ called until after the break command returns."
 		   ;; Handle bad choices
 		   nil)))))))
 
-(defmacro def-operator-menu-new (name failure-func choices min max tries timeout terminator 
+(defmacro def-operator-menu-new (name failure-func choices min max tries timeout terminator
 				 menu-file invalid-file)
   (with-gensyms (i s dtmf-handler dtmf-input dtmf-status)
     `(progn
@@ -150,13 +150,13 @@ called until after the break command returns."
 	   (sb-ext:compare-and-swap (dtmf-handler *session*)
 				    (dtmf-handler *session*)
 				    #'(lambda (,dtmf-input ,dtmf-status)
-					(handle-menu-dtmf ,dtmf-input 
-							  ,dtmf-status 
+					(handle-menu-dtmf ,dtmf-input
+							  ,dtmf-status
 							  ',choices)))
-	   (set-next-step #'(lambda (,i ,s)
-			      ;; FIXME: use timer, check retires, replay file
-			      )
-			  :play ,menu-file)))
+	   (take-operator-action #'(lambda (,i ,s)
+                                     ;; FIXME: use timer, check retires, replay file
+                                     )
+                                 :play ,menu-file)))
        (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
        (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
 |#
@@ -235,22 +235,40 @@ called until after the break command returns."
 
 (defmacro def-custom-operator-action (name lambda-list &body body)
   `(progn
-    (defun ,name ,lambda-list 
+    (defun ,name ,lambda-list
       (logger :debug "IN OPERATOR METHOD: ~A" ',name)
       ,@body)
     (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
     (export-as-operator-method #',name (string-downcase (symbol-name ',name)))))
+
+(defmacro take-operator-action (continuation recognizer &rest args)
+  `(progn
+     (set-continuation ,continuation ,recognizer)
+     (handler-case
+	 (fs-command (fs-stream *session*)
+		     ,recognizer
+		     ,(if args `(list ,@args) nil)
+		     :uuid (uuid *session*))
+       (stream-error (c)
+	 (logger :err "PROBLEM WITH FS-COMMAND: ~A" c)))))
 
 (defmacro set-next-step (continuation recognizer &rest args)
   `(progn
      (set-continuation ,continuation ,recognizer)
      (handler-case
 	 (fs-command (fs-stream *session*)
-		     ,recognizer 
+		     ,recognizer
 		     ,(if args `(list ,@args) nil)
 		     :uuid (uuid *session*))
        (stream-error (c)
 	 (logger :err "PROBLEM WITH FS-COMMAND: ~A" c)))))
+
+(defmacro with-session-vars (var-list &body body)
+  `(let (,@(mapcar #'(lambda (var)
+                       (let ((keyword (intern (symbol-name var) :keyword)))
+                         `(,var (get-session-var ,keyword))))
+                   var-list))
+     ,@body))
 
 (defmacro def-operator-plan (&rest steps)
   `(progn
