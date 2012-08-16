@@ -720,14 +720,15 @@ are found."
 		 (format nil "Outgoing call was unsucessful. No auth requested: ~A" response))))))
 
 (defun list-valid-session-uuids ()
-  (let ((out 
-	 (trivial-shell:shell-command 
-	  "/usr/local/freeswitch/bin/fs_cli -P 8021 -H localhost -p miadmin -x 'show channels'")))
+  (let ((out
+         (trivial-shell:shell-command
+          (format nil "/usr/local/freeswitch/bin/fs_cli -P ~A -H ~A -p ~A -x 'show channels'"
+                  *fs-port* *fs-host* *fs-auth*))))
     (let ((lines (cl-ppcre:split "\\n" out)) (uuids nil))
       (dolist (l lines)
-	(when (cl-ppcre:scan "^[0-9abcdef]{8}\-" l)
-	  (let ((d (cl-ppcre:split "\," l)))
-	    (push (elt d 0) uuids))))
+        (when (cl-ppcre:scan "^[0-9abcdef]{8}\-" l)
+          (let ((d (cl-ppcre:split "\," l)))
+            (push (elt d 0) uuids))))
       uuids)))
 
 (defun kill-invalid-sessions ()
