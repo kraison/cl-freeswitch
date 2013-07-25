@@ -10,13 +10,13 @@
   (setf (gethash function-name *operator-methods*) func))
 
 (defmacro set-dtmf-handler (lst &key (break? t))
-  "Set DTMF handlers from a list of pairs. Handler will send a break command and then execute the
-continuation.  If break? is true, event-lock will be used and the DTMF continuation will not be
-called until after the break command returns."
+  "Set DTMF handlers from a list of pairs. Handler will send a break command and
+then execute the continuation.  If break? is true, event-lock will be used and the
+DTMF continuation will not be called until after the break command returns."
   (let ((input (gensym)) (status (gensym)) (digit (gensym)) (action (gensym))
 	(i (gensym)) (s (gensym)) (l (gensym)) (b? (gensym)))
     `(let ((,l ',lst) (,b? ,break?))
-       (sb-ext:compare-and-swap
+       (compare-and-swap
 	(dtmf-handler *session*)
 	(dtmf-handler *session*)
 	#'(lambda (,input ,status)
@@ -26,9 +26,11 @@ called until after the break command returns."
 		(if (and ,action (or (fboundp ,action) (functionp ,action)))
 		    (if ,b?
 			(progn
-			  (logger :debug "DTMF HANDLER CALLING BREAK AND THEN ~A FOR ~A"
-				  ,action ,digit)
-			  (set-continuation #'(lambda (,i ,s) (funcall ,action ,i ,s))
+			  (logger
+                           :debug "DTMF HANDLER CALLING BREAK AND THEN ~A FOR ~A"
+                           ,action ,digit)
+			  (set-continuation #'(lambda (,i ,s)
+                                                (funcall ,action ,i ,s))
 					    (recognizer *session*))
 			  (handler-case
 			      (fs-command (fs-stream *session*)
@@ -38,7 +40,8 @@ called until after the break command returns."
 			    (stream-error (c)
 			      (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))
 			(progn
-			  (logger :debug "DTMF HANDLER CALLING ~A FOR ~A" ,action ,digit)
+			  (logger :debug "DTMF HANDLER CALLING ~A FOR ~A"
+                                  ,action ,digit)
 			  (funcall ,action ,input ,status)))
 		    (logger :err "NO DTMF HANDLER DEFINED FOR ~A" ,digit)))))))))
 
@@ -56,12 +59,15 @@ called until after the break command returns."
 		       :uuid (uuid *session*))
 	 (stream-error (c)
 	   (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))
-     (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
-     (export-as-operator-method #',name (string-downcase (symbol-name ',name)))))
+     (export-as-operator-method
+      #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+     (export-as-operator-method
+      #',name (string-downcase (symbol-name ',name)))))
 
-(defmacro def-operator-menu (name failure-func choices min max tries timeout terminator menu-file
-			invalid-file &optional regex)
-  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym)) (dtmf-handler (gensym)))
+(defmacro def-operator-menu (name failure-func choices min max tries timeout
+                             terminator menu-file invalid-file &optional regex)
+  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym))
+        (dtmf-handler (gensym)))
     `(progn
        (defun ,name (input status)
 	 (let ((,dtmf-handler (dtmf-handler *session*)))
@@ -76,27 +82,30 @@ called until after the break command returns."
 		    (let ((,choice (fs-fetch :variable-user-input ,i)))
 		      (logger :debug "EXAMINING USER INPUT ~A" ,choice)
 		      (cond
-			,@(mapcar #'(lambda (c)
-				      (cond ((and (consp (first c))
-						  (eql (first (first c)) :regex))
-					     `((my-scan ,(second (first c)) ,choice)
-					       (logger :debug "INPUT ~A MATCHED REGEX ~A"
-						       ,choice ,(second (first c)))
-					       (set-session-var :user-input ,choice)
-					       (set-session-var :retries 0)
-					       (funcall ,(second c) input status)))
-					    ((stringp (first c))
-					     `((equalp ,choice ,(first c))
-					       (set-session-var :user-input ,choice)
-					       (set-session-var :retries 0)
-					       (funcall ,(second c) input status)))))
-				  choices)
+			,@(mapcar
+                           #'(lambda (c)
+                               (cond ((and (consp (first c))
+                                           (eql (first (first c)) :regex))
+                                      `((my-scan ,(second (first c)) ,choice)
+                                        (logger :debug "INPUT ~A MATCHED REGEX ~A"
+                                                ,choice ,(second (first c)))
+                                        (set-session-var :user-input ,choice)
+                                        (set-session-var :retries 0)
+                                        (funcall ,(second c) input status)))
+                                     ((stringp (first c))
+                                      `((equalp ,choice ,(first c))
+                                        (set-session-var :user-input ,choice)
+                                        (set-session-var :retries 0)
+                                        (funcall ,(second c) input status)))))
+                           choices)
 			(t (funcall #',name input status))))))
 	    :play-and-get-digits)
 	   (let ((,args
 		  ,(if regex
-		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file ,regex)
-		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file))))
+		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file
+                              ,invalid-file ,regex)
+		       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file
+                              ,invalid-file))))
 	     (handler-case
 		 (fs-command (fs-stream *session*)
 			     :play-and-get-digits
@@ -104,7 +113,56 @@ called until after the break command returns."
 			     :uuid (uuid *session*))
 	       (stream-error (c)
 		 (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))))
-       (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+       (export-as-operator-method
+        #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+       (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
+
+(defmacro def-dynamic-menu (name failure-fn choices-fn static-choices tries timeout
+                            terminator menu-file invalid-file)
+  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym))
+        (dtmf-handler (gensym)) (choices (gensym)) (min (gensym)) (max (gensym))
+        (continuation (gensym)))
+    `(progn
+       (defun ,name (input status)
+	 (let* ((,dtmf-handler (dtmf-handler *session*))
+                (,choices (append (funcall ,choices-fn) ',static-choices))
+                (,max (apply #'max (mapcar #'(lambda (i) (length (first i)))
+                                           ,choices)))
+                (,min (apply #'min (mapcar #'(lambda (i) (length (first i)))
+                                           ,choices))))
+	   (logger :debug "IN OPERATOR METHOD: ~A" ',name)
+	   (unset-dtmf-handler)
+	   (set-continuation
+	    #'(lambda (,i ,s)
+		(when (functionp ,dtmf-handler)
+		  (setf (dtmf-handler *session*) ,dtmf-handler))
+		(if (eql ,s :user-failure)
+		    (funcall ,failure-fn ,i ,s)
+		    (let* ((,choice (fs-fetch :variable-user-input ,i))
+                           (,continuation (second
+                                           (remove-if-not
+                                            #'(lambda (c)
+                                                (equalp (first c) ,choice))
+                                            ,choices))))
+                      (logger :debug "EXAMINING USER INPUT ~A" ,choice)
+                      (if (functionp ,continuation)
+                          (progn
+                            (set-session-var :user-input ,choice)
+                            (set-session-var :retries 0)
+                            (funcall ,continuation input status))
+                          (funcall #',name input status)))))
+	    :play-and-get-digits)
+	   (let ((,args
+                  '(,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file)))
+	     (handler-case
+		 (fs-command (fs-stream *session*)
+			     :play-and-get-digits
+			     ,args
+			     :uuid (uuid *session*))
+	       (stream-error (c)
+		 (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))))
+       (export-as-operator-method
+        #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
        (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
 
 #|
@@ -137,8 +195,8 @@ called until after the break command returns."
 		   ;; Handle bad choices
 		   nil)))))))
 
-(defmacro def-operator-menu-new (name failure-func choices min max tries timeout terminator
-				 menu-file invalid-file)
+(defmacro def-operator-menu-new (name failure-func choices min max tries timeout
+                                 terminator menu-file invalid-file)
   (with-gensyms (i s dtmf-handler dtmf-input dtmf-status)
     `(progn
        (defun ,name (input status)
@@ -147,23 +205,27 @@ called until after the break command returns."
 	   ;; Reset DTMF handler to our special closure
 	   (unset-dtmf-handler)
 	   (set-session-var :menu-digits "")
-	   (sb-ext:compare-and-swap (dtmf-handler *session*)
-				    (dtmf-handler *session*)
-				    #'(lambda (,dtmf-input ,dtmf-status)
-					(handle-menu-dtmf ,dtmf-input
-							  ,dtmf-status
-							  ',choices)))
+	   (compare-and-swap (dtmf-handler *session*)
+                             (dtmf-handler *session*)
+                             #'(lambda (,dtmf-input ,dtmf-status)
+                                 (handle-menu-dtmf ,dtmf-input
+                                                   ,dtmf-status
+                                                   ',choices)))
 	   (take-operator-action #'(lambda (,i ,s)
                                      ;; FIXME: use timer, check retires, replay file
                                      )
                                  :play ,menu-file)))
-       (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
-       (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
+       (export-as-operator-method #',name (intern
+                                           (string-downcase (symbol-name ',name))
+                                           'keyword))
+       (export-as-operator-method #',name (string-downcase
+                                           (symbol-name ',name))))))
 |#
 
-(defmacro def-dtmf-combo-menu (name failure-func choices min max tries timeout terminator menu-file
-			       invalid-file &optional regex)
-  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym)) (dtmf-handler (gensym)))
+(defmacro def-dtmf-combo-menu (name failure-func choices min max tries timeout
+                               terminator menu-file invalid-file &optional regex)
+  (let ((choice (gensym)) (i (gensym)) (s (gensym)) (args (gensym))
+        (dtmf-handler (gensym)))
     `(progn
        (defun ,name (input status)
          (let ((,dtmf-handler (dtmf-handler *session*)))
@@ -178,26 +240,30 @@ called until after the break command returns."
                     (let ((,choice (fs-fetch :variable-user-input ,i)))
                       (logger :debug "EXAMINING USER INPUT ~A" ,choice)
                       (cond
-                        ,@(mapcar #'(lambda (c)
-                                      (cond ((and (consp (first c))
-                                                  (eql (first (first c)) :regex))
-                                             `((my-scan ,(second (first c)) ,choice)
-                                               (logger :debug "INPUT ~A MATCHED REGEX ~A" ,choice ,(second (first c)))
-                                               (set-session-var :user-input ,choice)
-                                               (set-session-var :retries 0)
-                                               (funcall ,(second c) input status)))
-                                            ((stringp (first c))
-                                             `((equalp ,choice ,(first c))
-                                               (set-session-var :user-input ,choice)
-                                               (set-session-var :retries 0)
-                                               (funcall ,(second c) input status)))))
-                                  choices)
+                        ,@(mapcar
+                           #'(lambda (c)
+                               (cond ((and (consp (first c))
+                                           (eql (first (first c)) :regex))
+                                      `((my-scan ,(second (first c)) ,choice)
+                                        (logger :debug "INPUT ~A MATCHED REGEX ~A"
+                                                ,choice ,(second (first c)))
+                                        (set-session-var :user-input ,choice)
+                                        (set-session-var :retries 0)
+                                        (funcall ,(second c) input status)))
+                                     ((stringp (first c))
+                                      `((equalp ,choice ,(first c))
+                                        (set-session-var :user-input ,choice)
+                                        (set-session-var :retries 0)
+                                        (funcall ,(second c) input status)))))
+                           choices)
                         (t (funcall #',name input status))))))
             :play-and-get-digits)
            (let ((,args
                   ,(if regex
-                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file ,regex)
-                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file ,invalid-file))))
+                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file
+                              ,invalid-file ,regex)
+                       `(list ,min ,max ,tries ,timeout ,terminator ,menu-file
+                              ,invalid-file))))
              (handler-case
                  (fs-command (fs-stream *session*)
                              :play-and-get-digits
@@ -205,8 +271,10 @@ called until after the break command returns."
                              :uuid (uuid *session*))
                (stream-error (c)
                  (logger :err "PROBLEM WITH FS-COMMAND: ~A" c))))))
-       (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
-       (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
+       (export-as-operator-method
+        #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+       (export-as-operator-method
+        #',name (string-downcase (symbol-name ',name))))))
 
 (defmacro def-operator-choice-handler (name tries parent-func failure-func choices)
   (let ((choice (gensym)))
@@ -223,23 +291,28 @@ called until after the break command returns."
 				 (set-session-var :retries 0)
 				 (funcall ,(second c) input status)))
 			   choices)
-		  ((and (numberp (get-session-var :tries)) (>= (get-session-var :tries) ,tries))
+		  ((and (numberp (get-session-var :tries))
+                        (>= (get-session-var :tries) ,tries))
 		      (funcall ,failure-func input status))
 		  (t
 		   (if (numberp (get-session-var :tries))
 		       (set-session-var :tries (+ 1 (get-session-var :tries)))
 		       (set-session-var :tries 1))
 		   (funcall ,parent-func input status))))))
-       (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
-       (export-as-operator-method #',name (string-downcase (symbol-name ',name))))))
+       (export-as-operator-method
+        #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+       (export-as-operator-method
+        #',name (string-downcase (symbol-name ',name))))))
 
 (defmacro def-custom-operator-action (name lambda-list &body body)
   `(progn
     (defun ,name ,lambda-list
       (logger :debug "IN OPERATOR METHOD: ~A" ',name)
       ,@body)
-    (export-as-operator-method #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
-    (export-as-operator-method #',name (string-downcase (symbol-name ',name)))))
+    (export-as-operator-method
+     #',name (intern (string-downcase (symbol-name ',name)) 'keyword))
+    (export-as-operator-method
+     #',name (string-downcase (symbol-name ',name)))))
 
 (defmacro take-operator-action (continuation recognizer &rest args)
   `(progn

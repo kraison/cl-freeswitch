@@ -17,24 +17,26 @@
 		   (setf current-input nil))
 		 (let ((pos (search ":" line)))
 		   (if pos
-		       (let ((key (intern (cl-ppcre:regex-replace-all 
-					   "_" (string-upcase (trim-ws (subseq line 0 pos))) "-")
+		       (let ((key (intern (cl-ppcre:regex-replace-all
+					   "_" (string-upcase
+                                                (trim-ws (subseq line 0 pos))) "-")
 					  'keyword))
 			     (value (subseq line (1+ pos))))
-			 (push (cons key (trim-ws (hunchentoot:url-decode value))) current-input))
+			 (push (cons key (trim-ws (hunchentoot:url-decode value)))
+                               current-input))
 		       (push (cons (trim-ws line) "") current-input)))))
 	 raw)
     (when current-input (push (nreverse current-input) all-inputs))
     (nreverse all-inputs)))
 
 (defun fs-parse (raw)
-  (mapcar 
+  (mapcar
    #'(lambda (input)
-       (mapcar 
+       (mapcar
 	#'(lambda (line)
 	    (let ((pos (search ":" line)))
 	      (if pos
-		  (let ((key (intern (cl-ppcre:regex-replace-all 
+		  (let ((key (intern (cl-ppcre:regex-replace-all
 				      "_" (string-upcase (trim-ws (subseq line 0 pos))) "-")
 				     'keyword))
 			(value (subseq line (1+ pos))))
@@ -46,8 +48,8 @@
 (defun fs-parse-line (input)
   (let ((pos (search ":" input)))
     (if pos
-	(let ((key (intern (cl-ppcre:regex-replace-all 
-			    "_" (string-upcase (trim-ws (subseq input 0 pos))) "-") 
+	(let ((key (intern (cl-ppcre:regex-replace-all
+			    "_" (string-upcase (trim-ws (subseq input 0 pos))) "-")
 			   'keyword))
 	      (value (subseq input (1+ pos))))
 	  (values key (trim-ws (hunchentoot:url-decode value))))
@@ -84,7 +86,7 @@
     (do ((fin nil))
 	(fin t)
       (setf (fill-pointer buffer) +buflen+)
-      (multiple-value-bind (buf len raddr) 
+      (multiple-value-bind (buf len raddr)
 	  (usocket:socket-receive sock buffer nil :element-type 'character)
 	(declare (ignore raddr))
 	(if (null buf)
@@ -92,7 +94,7 @@
 	    (setf (fill-pointer buffer) len)))
       (cond ((= (length buffer) 0)
 	     (setf fin t))
-	    (fin 
+	    (fin
 	     (format t "Got NIL, returning~%"))
 	    (t
 	     (format t "  Read ~a bytes: ~a~%" (length buffer) buffer)
@@ -130,8 +132,8 @@
   (cdr (assoc sym alist)))
 
 (defmethod recognize? (expecting raw-input)
-  "Looks for a set of key/value pairs in the raw freeswitch input.  Returns true if all kv pairs
-are found."
+  "Looks for a set of key/value pairs in the raw freeswitch input.  Returns true if
+all kv pairs are found."
   (when (every #'true
 	       (mapcar #'(lambda (item)
 			   (equalp (cdr (assoc (car item) raw-input)) (cdr item)))
@@ -160,10 +162,10 @@ are found."
 		       (with-recursive-lock-held ((stream-lock *session*))
 			 (do-write))
 		       (do-write))))
-	       (error 'freeswitch-client-error 
+	       (error 'freeswitch-client-error
 		      :reason (format nil "Stream closed on ~A." *session*))))
-	`(defmethod fs-command ((stream stream) (command (eql ,command)) args &key event-lock uuid
-				(with-lock? t))
+	`(defmethod fs-command ((stream stream) (command (eql ,command)) args
+                                &key event-lock uuid (with-lock? t))
 	   (declare (ignore uuid))
 	   (if (open-stream-p stream)
 	       (let ((,cmd (apply #'format nil ,str args)))
@@ -179,7 +181,7 @@ are found."
 		       (with-recursive-lock-held ((stream-lock *session*))
 			 (do-write))
 		       (do-write))))
-	       (error 'freeswitch-client-error 
+	       (error 'freeswitch-client-error
 		      :reason (format nil "Stream closed on ~A." *session*)))))))
 
 (defmacro def-recognizer (command default-return-value &rest options)
@@ -201,7 +203,7 @@ are found."
     (if (and uuid (or (assoc :unique-id input) (assoc :controlled-session-uuid input)))
 	(if (or (recognize? `((:unique-id . ,uuid)) input)
 		(recognize? `((:controlled-session-uuid . ,uuid)) input))
-	    (if (or (recognize? disconnect1 input) (recognize? disconnect2 input) 
+	    (if (or (recognize? disconnect1 input) (recognize? disconnect2 input)
 		    (recognize? disconnect3 input) (recognize? disconnect4 input))
 		:hangup
 		(call-next-method))
@@ -282,7 +284,7 @@ are found."
 	    (:variable-originate-disposition . "USER_NOT_REGISTERED")))
   (:dtmf ((:event-name . "DTMF"))))
 
-(def-fs-command :bridge 
+(def-fs-command :bridge
     "sendmsg ~A~%call-command: execute~%execute-app-name: bridge~%execute-app-arg: ~A~%" :uuid? t)
 (def-recognizer :bridge :unknown
   (:ok ((:event-name . "CHANNEL_BRIDGE")
@@ -324,7 +326,7 @@ are found."
   (:ignore ((:event-name . "CHANNEL_UNBRIDGE")
 	    (:variable-current-application . "bridge")
 	    (:variable-originate-disposition . "SUCCESS")))
-  (:not-ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:not-ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 	    (:application . "bridge")
 	    (:variable-originate-disposition . "USER_NOT_REGISTERED")))
   (:dtmf ((:event-name . "DTMF"))))
@@ -340,7 +342,7 @@ are found."
   (:ignore ((:event-name . "CHANNEL_UNBRIDGE")
 	    (:variable-current-application . "bridge")
 	    (:variable-originate-disposition . "SUCCESS")))
-  (:not-ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:not-ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 	    (:application . "bridge")
 	    (:variable-originate-disposition . "USER_NOT_REGISTERED")))
   (:dtmf ((:event-name . "DTMF"))))
@@ -349,7 +351,7 @@ are found."
     "sendmsg ~A~%call-command: execute~%execute-app-name: gentones~%execute-app-arg: ~A~%" :uuid? t)
 (def-recognizer :gentones :unknown
   (:ok     ((:event-name . "CHANNEL_EXECUTE_COMPLETE") (:application . "gentones")))
-  (:ok     ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:ok     ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 	    (:variable-current-application . "gentones")))
   (:dtmf   ((:event-name . "DTMF"))))
 
@@ -371,7 +373,7 @@ are found."
   (:ignore ((:event-name . "CHANNEL_EXECUTE") (:application . "speak")))
   (:dtmf   ((:event-name . "DTMF"))))
 
-(def-fs-command :say 
+(def-fs-command :say
     "sendmsg ~A~%call-command: execute~%execute-app-name: say~%execute-app-arg: ~A ~A ~A ~A~%"
   :uuid? t)
 (def-recognizer :say :unknown
@@ -387,7 +389,7 @@ are found."
 	 (with-output-to-string (s)
 	   (format s "sendmsg ~A~%call-command: execute~%execute-app-name: play_and_get_digits~%"
 		   uuid)
-	   (format s "execute-app-arg: ~A ~A ~A ~A ~A ~A ~A ~A ~A~%" 
+	   (format s "execute-app-arg: ~A ~A ~A ~A ~A ~A ~A ~A ~A~%"
 		   (nth 0 args) (nth 1 args) (nth 2 args) (nth 3 args) (nth 4 args)
 		   (nth 5 args) (nth 6 args) "user_input" (if (nth 7 args) (nth 7 args) "\\d+")))))
     (with-recursive-lock-held ((stream-lock *session*))
@@ -399,13 +401,13 @@ are found."
     (logger :debug "PLAY_AND_GET_DIGITS: ~A ~A" command event-lock)
     (add-history (list :output command))))
 (def-recognizer :play-and-get-digits :unknown
-  (:user-failure ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:user-failure ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 		  (:application . "play_and_get_digits")
 		  (:variable-read-result . "failure")))
-  (:ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 	(:application . "play_and_get_digits")
 	(:variable-read-result . "success")))
-  (:ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE") 
+  (:ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE")
 	(:application . "play_and_get_digits")
 	(:variable-read-result . "timeout")))
   (:hangup ((:content-type . "text/disconnect-notice")
@@ -413,7 +415,7 @@ are found."
   (:dtmf ((:event-name . "DTMF"))))
 ;  (:ignore ((:event-name . "DTMF"))))
 
-(def-fs-command :sleep 
+(def-fs-command :sleep
     "sendmsg ~A~%call-command: execute~%execute-app-name: sleep~%execute-app-arg: ~A~%" :uuid? t)
 (def-recognizer :sleep :unknown
   (:ok ((:event-name . "CHANNEL_EXECUTE_COMPLETE") (:application . "sleep"))))
@@ -479,7 +481,7 @@ are found."
   (:ok     ((:event-name . "CHANNEL_EXECUTE_COMPLETE") (:application . "set"))))
 
 ;;"sendmsg ~A~%call-command: execute~%execute-app-name: record~%execute-app-arg: ~{~A~^ ~}~%"
-(def-fs-command :record 
+(def-fs-command :record
     "sendmsg ~A~%call-command: execute~%execute-app-name: record~%execute-app-arg: ~A ~A~%"
   :uuid? t)
 (def-recognizer :record :unknown
@@ -496,7 +498,7 @@ are found."
 (def-recognizer :uuid-record-stop :unknown
   (:ok ((:content-type . "api/response") (:content-length . "12"))))
 
-(def-fs-command :set 
+(def-fs-command :set
     "sendmsg ~A~%call-command: execute~%execute-app-name: set~%execute-app-arg: ~A~%"
   :uuid? t)
 (def-recognizer :set :unknown
@@ -615,15 +617,15 @@ are found."
 	;(logger :info "GOT RESPONSE: ~A" response)
 	(if (eql (fs-command-ok? :myevents nil response) :ok)
 	    session
-	    (error 'freeswitch-client-error 
+	    (error 'freeswitch-client-error
 		   :reason (format nil "Unable to subscribe to events: ~A" response)))))))
 
 (defun extract-uuid-from-outgoing (input)
-  (let ((item (find "OK" input 
-		    :key 'car 
+  (let ((item (find "OK" input
+		    :key 'car
 		    :test #'(lambda (r i)
 			      (format t "Sreaching for ~A in ~A~%" r i)
-			      (when (stringp i) 
+			      (when (stringp i)
 				(cl-ppcre:scan r i))))))
     (if item
 	(let ((uuid (cl-ppcre:scan-to-strings "([0-9a-zA-Z]+\-){4}[0-9a-zA-Z]+" (car item))))
@@ -643,7 +645,7 @@ are found."
 	    (format stream "auth ~A~%~%" *fs-auth*)
 	    (force-output stream)
 	    (let ((response (fs-read stream sock)))
-	      (if (recognize? '((:content-type . "command/reply") 
+	      (if (recognize? '((:content-type . "command/reply")
 				(:reply-text . "OK accepted")) response)
 		  (progn
 		    (logger :debug "fs-login to ~A successful." (usocket:get-peer-name sock))
@@ -656,7 +658,7 @@ are found."
   (let ((stream nil) (sock nil) (session nil))
     (handler-case
 	(multiple-value-bind (stream1 sock1) (fs-login fs-host)
-	  (setq stream stream1 
+	  (setq stream stream1
 		sock sock1
 		session (create-session :stream stream :sock sock :uuid uuid))
 	    (logger :debug "event myevents ~A ALL~%~%" uuid)
@@ -665,7 +667,7 @@ are found."
 	    (fs-read stream sock) ;; FIXME: check for errors.
 	    (logger :debug "capture-call-by-uuid returning ~A" session)
 	    session)
-      (error (c)	
+      (error (c)
 	(logger :err "Error in capture-call-by-uuid: ~A" c)
 	(when (session? session)
 	  (shutdown-session session))
@@ -673,8 +675,8 @@ are found."
 	  (ignore-errors (usocket:socket-close sock)
 			 (close stream)))
 	nil))))
-	
-(defmethod fs-setup-outgoing-call ((stream stream) sock destination &key (timeout 60) 
+
+(defmethod fs-setup-outgoing-call ((stream stream) sock destination &key (timeout 60)
 				   (application "&park()") caller-id)
   (let ((session nil))
     (logger :debug "Logging in to FreeSWITCH at ~A" (usocket:get-peer-name sock))
@@ -684,17 +686,17 @@ are found."
 	    (format stream "auth ~A~%~%" *fs-auth*)
 	    (force-output stream)
 	    (let ((response (fs-read stream sock)))
-	      (if (recognize? '((:content-type . "command/reply") (:reply-text . "OK accepted")) 
+	      (if (recognize? '((:content-type . "command/reply") (:reply-text . "OK accepted"))
 			      response)
 		  (progn
-		    (logger :debug "fs-setup-outgoing-call authentication successful. calling ~A" 
+		    (logger :debug "fs-setup-outgoing-call authentication successful. calling ~A"
 			    destination)
-		    (format 
-		     stream 
+		    (format
+		     stream
 		     "api originate {ignore_early_media=true,originate_timeout=~A~A}~A ~A~%~%"
-		     timeout 
+		     timeout
 		     (if caller-id (format nil ",origination_caller_id_number=~A" caller-id) "")
-		     destination 
+		     destination
 		     application)
 		    (force-output stream)
 		    (let ((response (fs-read stream sock)))
@@ -712,9 +714,9 @@ are found."
 			    (fs-read stream sock) ;; FIXME: check for errors.
 			    (logger :debug "fs-setup-outgoing-call returning ~A" session)
 			    session)
-			  (error 'freeswitch-client-error :reason 
+			  (error 'freeswitch-client-error :reason
 				 (format nil "Problem calling originate: ~A" response)))))
-		  (error 'freeswitch-client-error :reason 
+		  (error 'freeswitch-client-error :reason
 			 (format nil "Outgoing call authentication not accepted: ~A" response)))))
 	  (error 'freeswitch-client-error :reason
 		 (format nil "Outgoing call was unsucessful. No auth requested: ~A" response))))))
@@ -733,7 +735,7 @@ are found."
 
 (defun kill-invalid-sessions ()
   (let ((uuids (list-valid-session-uuids)))
-    (apply-sessions 
+    (apply-sessions
      #'(lambda (s)
 	 (unless (member (uuid s) uuids :test 'equalp)
 	   (logger :debug "KILLING INVALID: ~A~%" s)
@@ -745,7 +747,7 @@ are found."
 		 (ignore-errors (shutdown-connection s)))
 	     (error (c)
 	       (logger :debug "Problem killing invalid session ~A: ~A" (uuid s) c))))))))
-     
+
 (defun list-invalid-sessions ()
   (let ((uuids (list-valid-session-uuids)) (sessions nil))
     (apply-sessions #'(lambda (s)

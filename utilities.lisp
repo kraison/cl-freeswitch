@@ -24,10 +24,10 @@
     (uuid:print-bytes s (uuid:make-v1-uuid))))
 
 (defun logger (level msg &rest args)
-  (syslog:log *syslog-program* 
-	      *syslog-facility* 
-	      level 
-	      (if (session? *session*) 
+  (syslog:log *syslog-program*
+	      *syslog-facility*
+	      level
+	      (if (session? *session*)
 		  (format nil "~A : ~A" (uuid *session*) (apply #'format nil msg args))
 		  (apply #'format nil msg args))
 	      syslog:+log-pid+))
@@ -124,4 +124,18 @@ containing the whole rest of the given `string', if any."
   (mapcan #'(lambda (item)
 	      (list (car item) (cdr item)))
 	  alist))
+
+#+sbcl (import '(sb-ext:compare-and-swap))
+
+#+lispworks (import '(system:compare-and-swap))
+
+#+sbcl
+(defmacro with-locked-hash-table (table &body body)
+  `(sb-ext:with-locked-hash-table (,table)
+     ,@body))
+
+#+lispworks
+(defmacro with-locked-hash-table ((table) &body body)
+  `(with-hash-table-locked ,table
+     ,@body))
 

@@ -12,21 +12,23 @@
        (py-configparser:get-option c s o)))
 
 (defun load-configuration (&key file)
-  (setf *configuration-file* (or (and file (probe-file file))
-				 (and (sb-posix:getenv "CL_FREESWITCH_CONFIG")
-				      (probe-file (sb-posix:getenv "CL_FREESWITCH_CONFIG")))
-                                 (probe-file "cl-freeswitch.cfg")
-                                 (probe-file "/etc/cl-freeswitch.cfg")
-                                 (probe-file "/usr/local/etc/cl-freeswitch.cfg")
-				 (probe-file "/home/raison/work/cl-freeswitch/cl-freeswitch.cfg")
-                                 (probe-file *configuration-file*)))
+  (setf *configuration-file*
+        (or (and file (probe-file file))
+            #+sbcl (and (sb-posix:getenv "CL_FREESWITCH_CONFIG")
+                        (probe-file (sb-posix:getenv "CL_FREESWITCH_CONFIG")))
+            (probe-file "cl-freeswitch.cfg")
+            (probe-file "/etc/cl-freeswitch.cfg")
+            (probe-file "/usr/local/etc/cl-freeswitch.cfg")
+            (probe-file "/home/raison/work/cl-freeswitch/cl-freeswitch.cfg")
+            (probe-file *configuration-file*)))
   (when (not *configuration-file*)
-    (error 'configuration-error :reason "Unable to load configuration file.  Cannot continue.~%"))
+    (error 'configuration-error
+           :reason "Unable to load configuration file.  Cannot continue.~%"))
   (logger :info "Using configuration file ~A~%" *configuration-file*)
   (setf *configuration* (py-configparser:make-config))
   (py-configparser:read-files *configuration* (list *configuration-file*))
   (when (py-configparser:has-section-p *configuration* "default")
-    (setq 
+    (setq
      *id* (or (get-option *configuration* "default" "id") *id*)
      *fs-host* (or (get-option *configuration* "default" "fs-host") *fs-host*)
      *fs-port* (let ((port (get-option *configuration* "default" "fs-port")))
@@ -39,7 +41,7 @@
 	      (if (and port (cl-ppcre:scan "^[0-9]+$" port))
 		  (parse-integer port)
 		  *port*))
-     *session-history-recording* (or (get-option *configuration* "default" "record-sessions") 
+     *session-history-recording* (or (get-option *configuration* "default" "record-sessions")
 				     *session-history-recording*)
      *thread-pool-size* (let ((threads (get-option *configuration* "default" "thread-pool-size")))
 			  (if (and threads (cl-ppcre:scan "^[0-9]+$" threads))
@@ -51,18 +53,18 @@
 		(get-option *configuration* queue-name "extension"))
 	(let ((valet-lot-range (get-option *configuration* queue-name "valet-space-range")))
 	  (destructuring-bind (start end) (cl-ppcre:split "-" valet-lot-range)
-	    (create-fifo-queue 
-	     queue-name 
+	    (create-fifo-queue
+	     queue-name
 	     (get-option *configuration* queue-name "extension")
 	     (get-option *configuration* queue-name "login-logout-extension")
 	     :last-resort-extension (get-option *configuration* queue-name "last-resort-extension")
-	     :agent-pause (or (parse-any-number 
+	     :agent-pause (or (parse-any-number
 			       (get-option *configuration* queue-name "agent-pause"))
 			      10)
-	     :agent-timeout (or (parse-any-number 
+	     :agent-timeout (or (parse-any-number
 				 (get-option *configuration* queue-name "agent-timeout"))
 				10)
-	     :max-hold-time (or (parse-any-number 
+	     :max-hold-time (or (parse-any-number
 				 (get-option *configuration* queue-name "max-hold-time"))
 				10)
 	     :greeting (get-option *configuration* queue-name "greeting-file")

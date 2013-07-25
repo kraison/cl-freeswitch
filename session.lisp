@@ -9,8 +9,8 @@
                  error
                (format stream "Session error: ~A." reason)))))
 
-(defstruct (session 
-	     (:print-function print-session) 
+(defstruct (session
+	     (:print-function print-session)
 	     (:predicate session?)
 	     (:conc-name nil))
   (uuid nil)
@@ -41,15 +41,15 @@
 
 (defun print-session (session stream depth)
   (declare (ignore depth))
-  (format stream "#<SESSION ~A FROM ~A TO ~A>" 
+  (format stream "#<SESSION ~A FROM ~A TO ~A>"
 	  (uuid session) (caller-id session) (destination session)))
 
 (defun all-calls ()
   (handler-case
       (trivial-timeout:with-timeout (2)
-	(sb-ext:with-locked-hash-table (*sessions*)
+	(with-locked-hash-table (*sessions*)
 	  (maphash #'(lambda (id session)
-		       (format t "~A~%  Continuation: ~A~%  recognizer: ~A~%" 
+		       (format t "~A~%  Continuation: ~A~%  recognizer: ~A~%"
 			       session (continuation session) (recognizer session)))
 		   *sessions*)))
     (error (c)
@@ -57,7 +57,7 @@
       (format t "Unable to get hash table lock for *sessions*~%"))))
 
 (defun apply-sessions (func)
-  (sb-ext:with-locked-hash-table (*sessions*)
+  (with-locked-hash-table (*sessions*)
     (maphash #'(lambda (id session)
 		 (funcall func session))
 	     *sessions*)))
@@ -70,7 +70,7 @@
 
 (defun add-history (entry)
   "Entries should be a list: '(:input blah blah) or '(:output blah blah)"
-  (when (and (session? *session*) 
+  (when (and (session? *session*)
 	     (or *session-history-recording* (get-session-var :record-session?)))
     (push (cons (get-universal-time) entry) (history *session*))))
 
@@ -78,39 +78,55 @@
   (setf (history session) nil))
 
 (defun set-continuation (continuation recognizer)
-  (sb-ext:compare-and-swap (recognizer *session*) (recognizer *session*) recognizer)
-  (sb-ext:compare-and-swap (continuation *session*) (continuation *session*) continuation))
+  (compare-and-swap (recognizer *session*)
+                    (recognizer *session*)
+                    recognizer)
+  (compare-and-swap (continuation *session*)
+                    (continuation *session*)
+                    continuation))
 
 (defun set-error-handler (func)
-  (sb-ext:compare-and-swap (error-handler *session*) (error-handler *session*) func))
+  (compare-and-swap (error-handler *session*)
+                    (error-handler *session*)
+                    func))
 
 (defun unset-error-handler ()
-  (sb-ext:compare-and-swap (error-handler *session*) (error-handler *session*) nil))
+  (compare-and-swap (error-handler *session*)
+                    (error-handler *session*)
+                    nil))
 
 (defun set-end-call-handler (func)
-  (sb-ext:compare-and-swap (end-call-handler *session*) (end-call-handler *session*) func))
+  (compare-and-swap (end-call-handler *session*)
+                    (end-call-handler *session*)
+                    func))
 
 (defun unset-end-call-handler ()
-  (sb-ext:compare-and-swap (end-call-handler *session*) (end-call-handler *session*) nil))
+  (compare-and-swap (end-call-handler *session*)
+                    (end-call-handler *session*)
+                    nil))
 
 (defun unset-dtmf-handler ()
-  (sb-ext:compare-and-swap (dtmf-handler *session*) (dtmf-handler *session*) nil))
+  (compare-and-swap (dtmf-handler *session*)
+                    (dtmf-handler *session*)
+                    nil))
 
 (defun get-session-vars (&rest keys)
-  (values-list 
-   (sb-ext:with-locked-hash-table ((symbol-table *session*))
-     (mapcar #'(lambda (key) 
-		 (gethash key (symbol-table *session*))) 
-	     keys))))
+  (values-list
+   (let ((table (symbol-table *session*)))
+     (with-locked-hash-table (table)
+       (mapcar #'(lambda (key)
+                   (gethash key (symbol-table *session*)))
+               keys)))))
 
 (defun get-session-var (key)
   (gethash key (symbol-table *session*)))
 
 (defun set-session-vars (alist)
-  (sb-ext:with-locked-hash-table ((symbol-table *session*))
-    (mapcar #'(lambda (i)
-		(setf (gethash (car i) (symbol-table *session*)) (cdr i)))
-	    alist)))
+  (let ((table (symbol-table *session*)))
+    (with-locked-hash-table (table)
+      (mapcar #'(lambda (i)
+                  (setf (gethash (car i) (symbol-table *session*)) (cdr i)))
+              alist))))
 
 (defun set-session-var (key val)
   (setf (gethash key (symbol-table *session*)) val))
@@ -128,8 +144,9 @@
 	    (logger :debug "Sending ANSWER string")
 	    (set-continuation func :answer)
 	    (fs-command (fs-stream *session*) :answer nil :uuid (uuid *session*)))
-	  (error 'session-error 
-		 :reason (format nil "Unknown extension dialed: ~A" (destination *session*)))))))
+	  (error 'session-error
+		 :reason (format nil "Unknown extension dialed: ~A"
+                                 (destination *session*)))))))
 
 (defmethod shutdown-session ((session session) &key (hangup? t))
   (with-recursive-lock-held ((lock session))
@@ -137,22 +154,27 @@
     (let ((*session* session))
       (logger :debug "Destroying session ~A" session)
       (when hangup?
-	(ignore-errors (fs-command (fs-stream *session*) :hangup nil :uuid (uuid *session*))))
-      (when (or (functionp (end-call-handler session)) (fboundp (end-call-handler session)))
+	(ignore-errors (fs-command (fs-stream *session*)
+                                   :hangup nil :uuid (uuid *session*))))
+      (when (or (functionp (end-call-handler session))
+                (fboundp (end-call-handler session)))
 	(logger :debug "shutdown-session waiting for session lock on ~A" session)
 	(handler-case
 	    ;;(with-recursive-lock-held ((lock *session*))
 	    (progn
-	      (logger :debug "SHUTDOWN-SESSION RUNNING END-CALL-HANDLER: ~A" (end-call-handler session))
+	      (logger :debug "SHUTDOWN-SESSION RUNNING END-CALL-HANDLER: ~A"
+                      (end-call-handler session))
 	      (funcall (end-call-handler session) session)
-	      (logger :debug "shutdown-session releasing session lock on ~A" session))
+	      (logger :debug "shutdown-session releasing session lock on ~A"
+                      session))
 	  (error (c)
 	    (logger :err "shutdown-session got error on ~A: ~A" session c))))
       (reset-history session)
       (remhash (uuid session) *sessions*)
       (logger :debug "shutdown-session done for ~A" session))))
 
-(defun create-session (&key stream sock uuid caller-id destination fs-host raw-connect-info)
+(defun create-session (&key stream sock uuid caller-id destination fs-host
+                       raw-connect-info)
   (if (streamp stream)
       (let ((session (lookup-session uuid)))
 	(if (session? session)

@@ -50,6 +50,7 @@
 	   #:def-extension
 	   #:def-operator-action
 	   #:def-operator-menu
+           #:def-dynamic-menu
 	   #:def-dtmf-combo-menu
 	   #:def-operator-choice-handler
 	   #:def-custom-operator-action
