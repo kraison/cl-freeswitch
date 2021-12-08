@@ -2,10 +2,11 @@
 
 (defun notify (message)
   (when *mail-relay*
-    (make-thread 
+    (make-thread
      #'(lambda ()
-	 (let ((message (string-right-trim '(#\Space #\Tab #\Newline #\Linefeed #\Return)
-					   message)))
+	 (let ((message (string-right-trim
+                         '(#\Space #\Tab #\Newline #\Linefeed #\Return)
+                         message)))
 	   (map nil #'(lambda (email)
 			(logger :debug "Notifying ~A of ~A" email message)
 			(cl-smtp:send-email *mail-relay*

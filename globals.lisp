@@ -20,7 +20,7 @@
 (defconstant +buflen+ 64)
 
 #+sbcl (defvar *extension-table* (make-hash-table :test 'equalp :synchronized t))
-#+lispworks (defvar *extension-table* (make-hash-table :test 'equalp))
+#+lispworks (defvar *extension-table* (make-hash-table :test 'equalp :single-thread nil))
 #+sbcl (defvar *sessions* (make-hash-table :test 'equalp :synchronized t))
 #+lispworks (defvar *sessions* (make-hash-table :test 'equalp :single-thread nil))
 

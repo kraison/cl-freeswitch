@@ -44,14 +44,14 @@
 
 ;; FIXME: see doc string
 (defun data-received-handler (session func)
-  "Reads all pending characters on a socket into the session buffer. Should be replaced with 
+  "Reads all pending characters on a socket into the session buffer. Should be replaced with
 something capable of detecting overruns."
   (let ((request nil) (stream (fs-stream session)))
     (progn
       (do ((input (read-line stream) (read-line stream)))
 	  ((or (null input) (null (listen stream))))
 	(push input request)))
-    (when (> (length request) 0) 
+    (when (> (length request) 0)
       (let ((*session* session))
 	(funcall func (nreverse request))))))
 
@@ -60,19 +60,24 @@ something capable of detecting overruns."
       (progn
 	(loop until *stop-listener*
 	   do
-	   (let ((sock (usocket:wait-for-input (sock *session*) :ready-only t :timeout 1)))
+           (let ((sock (usocket:wait-for-input (sock *session*) :ready-only t
+                                               :timeout 1)))
 	     (when sock
 	       (let ((status (data-received-handler *session* recv-func)))
 		 (cond ((eql status :hangup)
-			(logger :debug "Got hangup for ~A. Ending session." *session*)
+			(logger :debug "Got hangup for ~A. Ending session."
+                                *session*)
 			(shutdown-session *session*)
 			(shutdown-connection *session*)
-			(sb-ext:quit))
+                        #+lispworks (lw:quit)
+			#+sbcl (sb-ext:quit))
 		       ((eql status :abandon)
-			(logger :debug "Got abandon-call for ~A. Ending session." *session*)
+			(logger :debug "Got abandon-call for ~A. Ending session."
+                                *session*)
 			(shutdown-session *session* :hangup? nil)
 			(shutdown-connection *session*)
-			(sb-ext:quit)))))))
+                        #+lispworks (lw:quit)
+			#+sbcl (sb-ext:quit)))))))
 	(shutdown-session *session*)
 	(shutdown-connection *session*)
 	(logger :debug "Session ended: ~A" *session*))
@@ -124,7 +129,7 @@ something capable of detecting overruns."
   (logger :info "Starting tcp listener on port ~A" port)
   (setf *stop-listener* nil)
   (usocket:with-server-socket (listener (usocket:socket-listen address port :reuse-address t))
-    (loop until *stop-listener* 
+    (loop until *stop-listener*
        do
        (handler-case
 	   (when (usocket:wait-for-input listener :ready-only t :timeout 1)
@@ -145,20 +150,21 @@ something capable of detecting overruns."
 (defun originate (destination &key continuation session-vars (timeout 60) fs-host
 		  (recv-func 'handle-incoming-event) caller-id)
   (unless fs-host (setf fs-host *fs-host*))
-  (let ((thread 
+  (let ((thread
 	 (make-thread
 	  #'(lambda ()
 	      (let* (*session*
-		     (socket (handler-case 
-				 (usocket:socket-connect fs-host *fs-port*) 
-			       (error (c) 
+		     (socket (handler-case
+				 (usocket:socket-connect fs-host *fs-port*)
+			       (error (c)
 				 (logger :err "ORIGINATE: unable to connect to FS: ~A" c)
-				 (sb-ext:quit))))
+                                 #+lispworks (lw:quit)
+                                 #+sbcl(sb-ext:quit))))
 		     (stream (when socket (usocket:socket-stream socket))))
 		(handler-case
 		    (progn
 		      (logger :debug "ORIGINATE FOR ~A / ~A" socket destination)
-		      (setf *session* (fs-setup-outgoing-call stream socket destination 
+		      (setf *session* (fs-setup-outgoing-call stream socket destination
 							      :timeout timeout
 							      :caller-id caller-id))
 		      (when (session? *session*)

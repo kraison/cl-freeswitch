@@ -7,7 +7,7 @@
   (load-configuration :file config-file)
   (when (and (threadp *listener-thread*) (thread-alive-p *listener-thread*))
     (error 'listener-error "Listener already running: ~A" *listener-thread*))
-  (setf *listener-thread* 
+  (setf *listener-thread*
 	;;(make-thread #'(lambda () (start-listener *port* :address "127.0.0.1")) :name "listener-thread")))
 	(make-thread #'(lambda () (start-listener *port*)) :name "listener-thread")))
 
@@ -20,7 +20,7 @@
     (format t "Shutting down ~A~%" *listener-thread*)
     (destroy-thread *listener-thread*))
   (setf *listener-thread* nil)
-  (sb-ext:with-locked-hash-table (*sessions*)
+  (with-locked-hash-table (*sessions*)
     (maphash #'(lambda (id session)
                  (declare (ignore id))
                  (format t "Shutting down session ~A~%" session)
