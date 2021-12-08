@@ -53,5 +53,6 @@
 	    (error 'event-handler-error :reason
 		   (format nil "No recognizer set for session ~A" *session*)))
       (error (c)
+	(logger :debug "RAW-INPUT: ~A" raw-input)
 	(logger :err "Unhandled error in handle-incoming-event for ~A: ~A" *session* c)
 	:hangup))))

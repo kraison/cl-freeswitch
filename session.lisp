@@ -127,7 +127,9 @@
 	  (progn
 	    (logger :debug "Sending ANSWER string")
 	    (set-continuation func :answer)
-	    (fs-command (fs-stream *session*) :answer nil :uuid (uuid *session*)))
+	    (fs-command (fs-stream *session*) :answer nil :uuid (uuid *session*))
+	    (logger :debug "SESSION ~A INITIATED" *session*)
+	    )
 	  (error 'session-error 
 		 :reason (format nil "Unknown extension dialed: ~A" (destination *session*)))))))
 
@@ -137,7 +139,7 @@
     (let ((*session* session))
       (logger :debug "Destroying session ~A" session)
       (when hangup?
-	(ignore-errors (fs-command (fs-stream *session*) :hangup nil :uuid (uuid *session*))))
+	(ignore-errors (fs-command (fs-stream session) :hangup nil :uuid (uuid session))))
       (when (or (functionp (end-call-handler session)) (fboundp (end-call-handler session)))
 	(logger :debug "shutdown-session waiting for session lock on ~A" session)
 	(handler-case

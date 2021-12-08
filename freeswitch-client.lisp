@@ -601,18 +601,28 @@ are found."
   (logger :debug "Handling client ~A" (usocket:get-peer-name sock))
   (fs-connect stream)
   (let ((request (fs-read stream sock)))
-    (let ((session (create-session :stream stream
-				   :raw-connect-info request
-				   :fs-host (ip-to-string (usocket:get-peer-name sock))
-				   :sock sock
-				   :uuid (fs-fetch :unique-id request)
-				   :caller-id (fs-fetch :caller-caller-id-number request)
-				   :destination (fs-fetch :caller-destination-number request))))
+    (let ((session (or (if (lookup-session (fs-fetch :unique-id request))
+			   (let ((session (lookup-session (fs-fetch :unique-id request))))
+			     (setf (fs-stream session) stream
+				   (raw-connect-info session) request
+				   (fs-host session) (ip-to-string (usocket:get-peer-name sock))
+				   (sock session) sock
+				   (caller-id session) (fs-fetch :caller-caller-id-number request)
+				   (destination session) (fs-fetch :caller-destination-number request))
+			     session)
+			   (create-session :stream stream
+					   :raw-connect-info request
+					   :fs-host (ip-to-string (usocket:get-peer-name sock))
+					   :sock sock
+					   :uuid (fs-fetch :unique-id request)
+					   :caller-id (fs-fetch :caller-caller-id-number request)
+					   :destination (fs-fetch :caller-destination-number request))))))
+      (logger :debug "SESSION IS ~A" session)
       (logger :debug "FS-SETUP-CALL: sending myevents")
       (format stream "event myevents ~A all~%~%" (uuid session))
       (force-output stream)
       (let ((response (fs-read stream sock)))
-	;(logger :info "GOT RESPONSE: ~A" response)
+	(logger :info "FS-SETUP-CALL GOT RESPONSE: ~A" response)
 	(if (eql (fs-command-ok? :myevents nil response) :ok)
 	    session
 	    (error 'freeswitch-client-error 

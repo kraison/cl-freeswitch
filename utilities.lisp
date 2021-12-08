@@ -27,9 +27,11 @@
   (syslog:log *syslog-program* 
 	      *syslog-facility* 
 	      level 
+	      ;;(let ((msg (format nil "TEST ~A" msg)))
 	      (if (session? *session*) 
 		  (format nil "~A : ~A" (uuid *session*) (apply #'format nil msg args))
 		  (apply #'format nil msg args))
+	      ;;)
 	      syslog:+log-pid+))
 
 (defun parse-any-number (str)
